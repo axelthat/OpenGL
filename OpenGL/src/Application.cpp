@@ -7,48 +7,29 @@
 #include "VertexBuffer.h"
 #include "IndexBuffer.h"
 #include "VertexArray.h"
+#include "Shader.h"
 
-static unsigned int CompileShader(int type, const std::string& source) {
-    GLCall(unsigned int id = glCreateShader(type));
-    const char* src = source.c_str();
-    GLCall(glShaderSource(id, 1, &src, nullptr));
-    GLCall(glCompileShader(id));
+const std::string vertexShader = R"glsl(
+    #version 330 core
 
-    int result;
-    GLCall(glGetShaderiv(id, GL_COMPILE_STATUS, &result));
-    if (result == GL_FALSE) {
-        int length;
-        GLCall(glGetShaderiv(id, GL_INFO_LOG_LENGTH, &length));
-        char* message = new char[length];
-        GLCall(glGetShaderInfoLog(id, length, &length, message));
-        std::cout << "Failed to compile " << (type == GL_VERTEX_SHADER ? "vertex" : "fragment") << " shader!" << std::endl;
-        std::cout << message << std::endl;
-        GLCall(glDeleteShader(id));
+    layout(location = 0) in vec4 position;
 
-        delete[] message;
-        message = nullptr;
-
-        return 0;
+    void main() {
+        gl_Position = position;
     }
+)glsl";
 
-    return id;
-}
+const std::string fragmentShader = R"glsl(
+    #version 330 core
 
-static unsigned int CreateShader(const std::string& vertexShader, const std::string& fragmentShader) {
-    GLCall(unsigned int program = glCreateProgram());
-    unsigned int vs = CompileShader(GL_VERTEX_SHADER, vertexShader);
-    unsigned int fs = CompileShader(GL_FRAGMENT_SHADER, fragmentShader);
+    layout(location = 0) out vec4 color;
 
-    GLCall(glAttachShader(program, vs));
-    GLCall(glAttachShader(program, fs));
-    GLCall(glLinkProgram(program));
-    GLCall(glValidateProgram(program));
+    uniform vec4 u_Color;
 
-    GLCall(glDeleteShader(vs));
-    GLCall(glDeleteShader(fs));
-
-    return program;
-}
+    void main() {
+        color = u_Color;
+    }
+)glsl";
 
 int main(void)
 {
@@ -106,39 +87,15 @@ int main(void)
 
         IndexBuffer ib(indices, 6);
 
-        const std::string vertexShader = R"glsl(
-            #version 330 core
+        Shader shader(vertexShader, fragmentShader);
+        shader.Bind();
 
-            layout(location = 0) in vec4 position;
-
-            void main() {
-                gl_Position = position;
-            }
-        )glsl";
-
-        const std::string fragmentShader = R"glsl(
-            #version 330 core
-
-            layout(location = 0) out vec4 color;
-
-            uniform vec4 u_Color;
-
-            void main() {
-                color = u_Color;
-            }
-        )glsl";
-
-        unsigned int shader = CreateShader(vertexShader, fragmentShader);
-        GLCall(glUseProgram(shader));
-
-        GLCall(int location = glGetUniformLocation(shader, "u_Color"));
-        ASSERT(location != -1);
-        GLCall(glUniform4f(location, 0.8f, 0.3f, 0.8f, 1.0f));
+        shader.SetUniform4f("u_Color", 0.8f, 0.3f, 0.8f, 1.0f);
 
         va.UnBind();
-        GLCall(glUseProgram(0));
-        GLCall(glBindBuffer(GL_ARRAY_BUFFER, 0));
-        GLCall(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
+        shader.UnBind();
+        vb.UnBind();
+        ib.UnBind();
 
         float r = 0.0f;
         float increment = 0.05f;
@@ -148,8 +105,8 @@ int main(void)
             /* Render here */
             GLCall(glClear(GL_COLOR_BUFFER_BIT));
 
-            GLCall(glUseProgram(shader));
-            GLCall(glUniform4f(location, r, 0.3f, 0.8f, 1.0f));
+            shader.Bind();
+            shader.SetUniform4f("u_Color", r, 0.3f, 0.8f, 1.0f);
 
             va.Bind();
             ib.Bind();
@@ -171,8 +128,6 @@ int main(void)
 
             //glDrawArrays(GL_TRIANGLES, 0, 3);
         }
-
-        GLCall(glDeleteProgram(shader));
     }
 
     glfwTerminate();
