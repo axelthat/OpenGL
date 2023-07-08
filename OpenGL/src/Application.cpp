@@ -6,6 +6,7 @@
 #include "Renderer.h"
 #include "VertexBuffer.h"
 #include "IndexBuffer.h"
+#include "VertexArray.h"
 
 static unsigned int CompileShader(int type, const std::string& source) {
     GLCall(unsigned int id = glCreateShader(type));
@@ -30,14 +31,14 @@ static unsigned int CompileShader(int type, const std::string& source) {
         return 0;
     }
 
-    return id; 
+    return id;
 }
 
 static unsigned int CreateShader(const std::string& vertexShader, const std::string& fragmentShader) {
     GLCall(unsigned int program = glCreateProgram());
     unsigned int vs = CompileShader(GL_VERTEX_SHADER, vertexShader);
     unsigned int fs = CompileShader(GL_FRAGMENT_SHADER, fragmentShader);
-    
+
     GLCall(glAttachShader(program, vs));
     GLCall(glAttachShader(program, fs));
     GLCall(glLinkProgram(program));
@@ -75,7 +76,7 @@ int main(void)
 
     glfwSwapInterval(1);
 
-    int version = gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);
+    int version = gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
     if (version == 0) {
         std::cout << "Failed to initialize OpenGL context" << std::endl;
         return -1;
@@ -84,28 +85,26 @@ int main(void)
     std::cout << "Loaded OpenGL " << glGetString(GL_VERSION) << std::endl;
 
     {
-        std::array positions {
+        float positions[]{
             -0.5f, -0.5f,
              0.5f, -0.5f,
              0.5f,  0.5f,
             -0.5f,  0.5f
         };
 
-        std::array<unsigned int, 6> indices {
+        unsigned int indices[]{
             0, 1, 2,
             2, 3, 0
         };
 
-        unsigned int vao;
-        GLCall(glGenVertexArrays(1, &vao));
-        GLCall(glBindVertexArray(vao));
+        VertexArray va;
+        VertexBuffer vb(positions, 4 * 2 * sizeof(float));
 
-        VertexBuffer vb(positions.data(), positions.size() * sizeof(float));
+        VertexBufferLayout layout;
+        layout.Push<GL_FLOAT>(2);
+        va.AddBuffer(vb, layout);
 
-        GLCall(glEnableVertexAttribArray(0));
-        GLCall(glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 2, 0));
-
-        IndexBuffer ib(indices.data(), indices.size());
+        IndexBuffer ib(indices, 6);
 
         const std::string vertexShader = R"glsl(
             #version 330 core
@@ -136,7 +135,7 @@ int main(void)
         ASSERT(location != -1);
         GLCall(glUniform4f(location, 0.8f, 0.3f, 0.8f, 1.0f));
 
-        GLCall(glBindVertexArray(0));
+        va.UnBind();
         GLCall(glUseProgram(0));
         GLCall(glBindBuffer(GL_ARRAY_BUFFER, 0));
         GLCall(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
@@ -152,8 +151,7 @@ int main(void)
             GLCall(glUseProgram(shader));
             GLCall(glUniform4f(location, r, 0.3f, 0.8f, 1.0f));
 
-            GLCall(glBindVertexArray(vao));
-
+            va.Bind();
             ib.Bind();
 
             GLCall(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr));
